@@ -22,6 +22,8 @@ namespace getGcisServer
                         server = Server.getInstance();
                         server.Start();
                         break;
+                    case "connect":
+                        break;
                 }
             }
         }
