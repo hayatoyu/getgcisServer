@@ -279,7 +279,25 @@ namespace getGcisServer
                                 }
                                 catch (IOException e)
                                 {
+                                    Console.WriteLine(e.Message);                                    
+                                    errCount++;
+                                    serverResponse = string.Format("查詢 {0} 時出現連線錯誤，錯誤代碼 {1}，將等候 10 秒重試...", comName, response.StatusCode.ToString());
+                                    SendToClient(netStream, serverResponse);
+
+                                    Thread.Sleep(10000);
+                                    continue;
+                                }
+                                catch(JsonSerializationException e)
+                                {
                                     Console.WriteLine(e.Message);
+                                    serverResponse = string.Format("查詢 {0} 時回應資料無法解析，將等候 5 秒重試...", comName);
+                                    errCount++;
+                                    SendToClient(netStream, serverResponse);
+                                    Thread.Sleep(5000);
+                                    continue;
+                                }
+                                finally
+                                {
                                     if (errCount >= 3)
                                     {
                                         index++;
@@ -293,17 +311,9 @@ namespace getGcisServer
                                         serverResponse = "result:" + JsonConvert.SerializeObject(err);
                                         SendToClient(netStream, serverResponse);
                                         serverResponse = string.Format("查詢 {0} 時發生錯誤已達3次，錯誤代碼 {1} ，將暫時跳過", comName, response.StatusCode.ToString());
-                                        SendToClient(netStream, serverResponse);
-                                        continue;
+                                        SendToClient(netStream, serverResponse);                                        
                                     }
-                                    errCount++;
-                                    serverResponse = string.Format("查詢 {0} 時出現連線錯誤，錯誤代碼 {1}，將等候 10 秒重試...", comName, response.StatusCode.ToString());
-                                    SendToClient(netStream, serverResponse);
-
-                                    Thread.Sleep(10000);
-                                    continue;
                                 }
-
                             }
                             else
                             {

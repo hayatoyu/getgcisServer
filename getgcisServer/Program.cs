@@ -10,19 +10,17 @@ namespace getGcisServer
     {
         static void Main(string[] args)
         {
-            Server server;
-            while(true)
+            Console.WriteLine(" ========== 歡迎使用商工行政資料批次抓取系統 ==========");
+            Server server = Server.getInstance();
+            server.Start();
+            while (true)
             {
                 string command = Console.ReadLine();
-                switch(command)
+                switch (command)
                 {
                     case "exit":
-                        break;
-                    case "start":
-                        server = Server.getInstance();
-                        server.Start();
-                        break;
-                    case "connect":
+                        Console.WriteLine(" 即將離開系統，歡迎再次使用 ");
+                        System.Environment.Exit(0);
                         break;
                 }
             }

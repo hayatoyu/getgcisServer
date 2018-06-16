@@ -20,10 +20,10 @@ namespace getGcisServer
         public string Company_Name { get; set; }
 
         [JsonProperty("Capital_Stock_Amount")]
-        public long Capital_Stock_Amount { get; set; }
+        public long? Capital_Stock_Amount { get; set; }
 
         [JsonProperty("Paid_In_Capital_Amount")]
-        public long Paid_In_Capital_Amount { get; set; }
+        public long? Paid_In_Capital_Amount { get; set; }
 
         [JsonProperty("Responsible_Name")]
         public string Responsible_Name { get; set; }
