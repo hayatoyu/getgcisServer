@@ -142,6 +142,7 @@ namespace getGcisServer
             StringBuilder stbr = new StringBuilder();
             int reqlength = 0;
             int requestErr = 0;
+            string IPAddr = ((IPEndPoint)client.Client.RemoteEndPoint).Address.ToString();
 
             // 告訴 client 可以開始送資料了
             serverResponse = "ready";
@@ -155,6 +156,7 @@ namespace getGcisServer
                     {
                         reqlength = netStream.Read(buffer, 0, buffer.Length);
                         stbr.Append(Encoding.UTF8.GetString(buffer, 0, reqlength));
+                        Thread.Sleep(1000);
                     }
                     while (netStream.DataAvailable);
                 }
@@ -169,6 +171,7 @@ namespace getGcisServer
 
                 string clientRequest = stbr.ToString();
                 stbr.Clear();
+                Console.WriteLine("從 {0} 接收到請求列表：\n{1}", IPAddr, clientRequest);
 
                 if (!string.IsNullOrEmpty(clientRequest))
                 {
@@ -176,18 +179,20 @@ namespace getGcisServer
                     try
                     {
                         comRequest = JsonConvert.DeserializeObject<ComRequest>(clientRequest);
-                        serverResponse = "收到欲查詢之資料...";
+                        serverResponse = string.Format("收到 {0} 欲查詢之資料...",IPAddr);
                         SendToClient(netStream, serverResponse);
                     }
                     catch (Exception e)
                     {
                         Console.WriteLine(e.Message);
-                        serverResponse = string.Format("無法解析 Json 字串 : {0}", clientRequest);
+                        serverResponse = string.Format("無法解析來自 {0} 之 Json 字串 : {1}",IPAddr, clientRequest);
+                        Console.WriteLine(serverResponse);
                         SendToClient(netStream, serverResponse);
                         requestErr++;
                         if (requestErr > 2)
                         {
-                            serverResponse = string.Format("無法解析 Json 字串已達 {0} 次，請檢查是否有誤，即將中斷連線", requestErr);
+                            serverResponse = string.Format("無法解析來自 {0} 之 Json 字串已達 {1} 次，請檢查是否有誤，即將中斷連線",IPAddr, requestErr);
+                            Console.WriteLine(serverResponse);
                             SendToClient(netStream, serverResponse);
                             client.Close();
                         }
@@ -195,6 +200,7 @@ namespace getGcisServer
                         {
                             serverResponse = "ready";
                             SendToClient(netStream, serverResponse);
+                            Console.WriteLine("{0} 準備就緒...", IPAddr);
                             continue;
                         }
                     }
@@ -205,13 +211,16 @@ namespace getGcisServer
                         string param = "Company_Name like comName and Company_Status eq 01";
                         int errCount = 0, index = 0;
                         string comName;
-
+                        serverResponse = string.Format("{0} 共有 {1} 條資料待查詢...", IPAddr, comRequest.comList.Length);
+                        Console.WriteLine(serverResponse);
+                        SendToClient(netStream, serverResponse);
                         while (index < comRequest.comList.Length)
                         {
-                            if (index % 100 == 0)
+                            if (index % 100 == 0 && index > 0)
                             {
-                                serverResponse = "已查詢100條，將等待 10 秒繼續";
+                                serverResponse = string.Format("{0} 已連續查詢 100 條，將等待 10 秒繼續...", IPAddr);
                                 SendToClient(netStream, serverResponse);
+                                Console.WriteLine(serverResponse);
                                 Thread.Sleep(10000);
                             }
 
@@ -221,8 +230,9 @@ namespace getGcisServer
                                 .Append("/od/data/api/6BBA2268-1367-4B42-9CCA-BC17499EBE8C")
                                 .Append("?$format=json&$filter=")
                                 .Append(param.Replace("comName", comName));
-                            serverResponse = string.Format("開始查詢 {0} 之資料...", comName);
+                            serverResponse = string.Format("{0} 開始查詢第 {1} / {2} 條資料...公司名稱 {3}", IPAddr,index + 1,comRequest.comList.Length,comName);
                             SendToClient(netStream, serverResponse);
+                            Console.WriteLine(serverResponse);
 
                             WebRequest request = WebRequest.Create(stbr.ToString());
                             HttpWebResponse response = request.GetResponse() as HttpWebResponse;
@@ -273,26 +283,28 @@ namespace getGcisServer
                                             Thread.Sleep(2000);
                                         }
                                     }
-                                    serverResponse = string.Format("查詢 {0} 完成!", comName);
+                                    serverResponse = string.Format("{0} 查詢 {1} 完成!",IPAddr, comName);
                                     SendToClient(netStream, serverResponse);
+                                    Console.WriteLine(serverResponse);
                                     index++;
                                 }
                                 catch (IOException e)
                                 {
                                     Console.WriteLine(e.Message);                                    
                                     errCount++;
-                                    serverResponse = string.Format("查詢 {0} 時出現連線錯誤，錯誤代碼 {1}，將等候 10 秒重試...", comName, response.StatusCode.ToString());
+                                    serverResponse = string.Format("{0} 查詢 {1} 時出現連線錯誤，錯誤代碼 {2}，將等候 10 秒重試...",IPAddr, comName, response.StatusCode.ToString());
                                     SendToClient(netStream, serverResponse);
-
+                                    Console.WriteLine(serverResponse);
                                     Thread.Sleep(10000);
                                     continue;
                                 }
                                 catch(JsonSerializationException e)
                                 {
                                     Console.WriteLine(e.Message);
-                                    serverResponse = string.Format("查詢 {0} 時回應資料無法解析，將等候 5 秒重試...", comName);
+                                    serverResponse = string.Format("{0} 查詢 {1} 時回應資料無法解析，將等候 5 秒重試...",IPAddr, comName);
                                     errCount++;
                                     SendToClient(netStream, serverResponse);
+                                    Console.WriteLine(serverResponse);
                                     Thread.Sleep(5000);
                                     continue;
                                 }
@@ -310,7 +322,8 @@ namespace getGcisServer
                                         };
                                         serverResponse = "result:" + JsonConvert.SerializeObject(err);
                                         SendToClient(netStream, serverResponse);
-                                        serverResponse = string.Format("查詢 {0} 時發生錯誤已達3次，錯誤代碼 {1} ，將暫時跳過", comName, response.StatusCode.ToString());
+                                        serverResponse = string.Format("{0} 查詢 {1} 時發生錯誤已達3次，錯誤代碼 {2} ，將暫時跳過",IPAddr, comName, response.StatusCode.ToString());
+                                        Console.WriteLine(serverResponse);
                                         SendToClient(netStream, serverResponse);                                        
                                     }
                                 }
@@ -329,14 +342,15 @@ namespace getGcisServer
                                     };
                                     serverResponse = "result:" + JsonConvert.SerializeObject(err);
                                     SendToClient(netStream, serverResponse);
-                                    serverResponse = string.Format("查詢 {0} 時發生錯誤已達3次，錯誤代碼 {1} ，將暫時跳過", comName, response.StatusCode.ToString());
+                                    serverResponse = string.Format("{0} 查詢 {1} 時發生錯誤已達3次，錯誤代碼 {2} ，將暫時跳過",IPAddr, comName, response.StatusCode.ToString());
                                     SendToClient(netStream, serverResponse);
+                                    Console.WriteLine(serverResponse);
                                     continue;
                                 }
                                 errCount++;
-                                serverResponse = string.Format("查詢 {0} 時出現連線錯誤，錯誤代碼 {1}，將等候 10 秒重試...", comName, response.StatusCode.ToString());
+                                serverResponse = string.Format("{0} 查詢 {1} 時出現連線錯誤，錯誤代碼 {2}，將等候 10 秒重試...",IPAddr, comName, response.StatusCode.ToString());
                                 SendToClient(netStream, serverResponse);
-
+                                Console.WriteLine(serverResponse);
                                 Thread.Sleep(10000);
                                 continue;
                             }
@@ -346,6 +360,8 @@ namespace getGcisServer
                         Thread.Sleep(3000);
                         serverResponse = "finish";
                         SendToClient(netStream, serverResponse);
+                        serverResponse = string.Format("{0} 批次查詢作業完畢", IPAddr);
+                        Console.WriteLine(serverResponse);
                         netStream.Close();
                     }
                 }
