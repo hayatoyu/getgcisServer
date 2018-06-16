@@ -7,10 +7,6 @@ using Newtonsoft.Json;
 
 namespace getGcisServer
 {
-    public class CompanyInfoJson
-    {
-        public CompanyInfo[] infos { get; set; }
-    }
 
     public class CompanyInfo
     {
@@ -50,5 +46,6 @@ namespace getGcisServer
     {
         public bool Duplicate { get; set; }
         public bool ErrNotice { get; set; }
+        public bool NoData { get; set; }
     }
 }

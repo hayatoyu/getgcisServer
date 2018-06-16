@@ -12,6 +12,7 @@ using Newtonsoft.Json.Serialization;
 using System.Threading;
 using System.IO;
 
+
 namespace getGcisServer
 {
     class Server
@@ -24,6 +25,7 @@ namespace getGcisServer
         private TcpListener listener;
         private BackgroundWorker bgwServer;
         private TcpClient socketClient;
+        private static object o = new object();
 
         public static Server server = new Server();
 
@@ -47,12 +49,11 @@ namespace getGcisServer
 
         public static Server getInstance()
         {
-            lock(server)
+            lock (o)
             {
                 if (server == null)
                     server = new Server();
-            }            
-
+            }
             return server;
         }
 
@@ -62,7 +63,22 @@ namespace getGcisServer
                 bgwServer.RunWorkerAsync();
         }
 
+        public void Stop()
+        {
+            string CloseMsg = " Server 端關閉連線...";
+            listener.Stop();
+            bgwServer.Dispose();
 
+            while (WaitLine.Peep())
+            {
+                var c = WaitLine.Pop();
+                using (NetworkStream ns = c.tcpClient.GetStream())
+                {
+                    SendToClient(ns, CloseMsg);
+                }
+                c.tcpClient.Close();
+            }
+        }
 
         private void addToWaitLine(object sender, DoWorkEventArgs e)
         {
@@ -76,19 +92,20 @@ namespace getGcisServer
                 while (AutoListen)
                 {
                     socketClient = listener.AcceptTcpClient();
-                    Console.WriteLine("One Client add to WaitLine");
+                    string serverMsg = string.Format("Connected to {0},add to WaitLine...", ((IPEndPoint)socketClient.Client.RemoteEndPoint).Address.ToString());
+                    Console.WriteLine(serverMsg);
                     lock (WaitLine)
                     {
                         WaitLine.push(new TcpCientComarable(socketClient, DateTime.Now));
-                    }
-                    using (NetworkStream netStream = socketClient.GetStream())
-                    {
-                        String serverResponse = "added";
-                        byte[] sendByte = Encoding.UTF8.GetBytes(serverResponse);
-                        netStream.Write(sendByte, 0, sendByte.Length);
-                        netStream.Flush();
+                        Thread.Sleep(2000);
                     }
 
+                    string serverResponse = "added";
+                    NetworkStream netStream = socketClient.GetStream();
+                    SendToClient(netStream, serverResponse);
+
+                    Thread th = new Thread(() => addToService());
+                    th.Start();
                 }
             }
             catch (Exception ex)
@@ -100,18 +117,20 @@ namespace getGcisServer
         private void addToService()
         {
             TcpCientComarable customer = null;
+            Thread th = null;
             while (true)
             {
-                if (WaitLine.Peep() && clientNumInService < 3)
+                lock (WaitLine)
                 {
-                    lock (WaitLine)
+                    if (WaitLine.Peep() && clientNumInService < 3)
                     {
                         customer = WaitLine.Pop();
+                        th = new Thread(() => Query(customer.tcpClient));
                         clientNumInService++;
+                        th.Start();
                     }
-                    Thread th = new Thread(() => Query(customer.tcpClient));
-                    th.Start();
                 }
+
             }
         }
 
@@ -119,9 +138,9 @@ namespace getGcisServer
         {
             NetworkStream netStream = client.GetStream();
             String serverResponse;
-            byte[] buffer = new byte[1024];
+            byte[] buffer = new byte[4096];
+            StringBuilder stbr = new StringBuilder();
             int reqlength = 0;
-            List<CompanyInfoResult> result = new List<CompanyInfoResult>();
             int requestErr = 0;
 
             // 告訴 client 可以開始送資料了
@@ -130,9 +149,29 @@ namespace getGcisServer
 
             while (client.Connected)
             {
-                if ((reqlength = netStream.Read(buffer, 0, buffer.Length)) != 0)
+                try
                 {
-                    string clientRequest = Encoding.UTF8.GetString(buffer, 0, reqlength);
+                    do
+                    {
+                        reqlength = netStream.Read(buffer, 0, buffer.Length);
+                        stbr.Append(Encoding.UTF8.GetString(buffer, 0, reqlength));
+                    }
+                    while (netStream.DataAvailable);
+                }
+                catch(IOException e)
+                {
+                    // 連線中斷
+                    Console.WriteLine(e.Message);
+                    client.Close();
+                    break;
+                }
+
+
+                string clientRequest = stbr.ToString();
+                stbr.Clear();
+
+                if (!string.IsNullOrEmpty(clientRequest))
+                {
                     ComRequest comRequest = null;
                     try
                     {
@@ -152,17 +191,30 @@ namespace getGcisServer
                             SendToClient(netStream, serverResponse);
                             client.Close();
                         }
+                        else
+                        {
+                            serverResponse = "ready";
+                            SendToClient(netStream, serverResponse);
+                            continue;
+                        }
                     }
                     if (comRequest != null)
                     {
                         // 要開始查API了
-                        StringBuilder stbr = new StringBuilder();
+                        stbr = new StringBuilder();
                         string param = "Company_Name like comName and Company_Status eq 01";
                         int errCount = 0, index = 0;
                         string comName;
 
                         while (index < comRequest.comList.Length)
                         {
+                            if (index % 100 == 0)
+                            {
+                                serverResponse = "已查詢100條，將等待 10 秒繼續";
+                                SendToClient(netStream, serverResponse);
+                                Thread.Sleep(10000);
+                            }
+
                             comName = comRequest.comList[index];
                             stbr.Clear();
                             stbr.Append("http://").Append("data.gcis.nat.gov.tw")
@@ -177,36 +229,81 @@ namespace getGcisServer
 
                             if (response.StatusCode == HttpStatusCode.OK)
                             {
-                                // 要解Json了
-                                using (Stream stream = response.GetResponseStream())
+                                try
                                 {
-                                    using (StreamReader reader = new StreamReader(stream))
+                                    // 要解Json了
+                                    using (Stream stream = response.GetResponseStream())
                                     {
-                                        string resFromAPI = reader.ReadToEnd();
-                                        var comInfos = JsonConvert.DeserializeObject<CompanyInfoJson>(resFromAPI).infos;
-                                        result.Add(
-                                            new CompanyInfoResult
-                                            {
-                                                Business_Accounting_NO = comInfos[0].Business_Accounting_NO,
-                                                Company_Status_Desc = comInfos[0].Company_Status_Desc,
-                                                Company_Name = comName,
-                                                Capital_Stock_Amount = comInfos[0].Capital_Stock_Amount,
-                                                Paid_In_Capital_Amount = comInfos[0].Paid_In_Capital_Amount,
-                                                Responsible_Name = comInfos[0].Responsible_Name,
-                                                Company_Location = comInfos[0].Company_Location,
-                                                Register_Organization_Desc = comInfos[0].Register_Organization_Desc,
-                                                Company_Setup_Date = comInfos[0].Company_Setup_Date,
-                                                Change_Of_Approval_Data = comInfos[0].Change_Of_Approval_Data,
-                                                Duplicate = comInfos.Length > 1 ? true : false,
-                                                ErrNotice = false
-                                            }
-                                            );
+                                        using (StreamReader reader = new StreamReader(stream))
+                                        {
+                                            string resFromAPI = reader.ReadToEnd();
+                                            CompanyInfoResult result = null;
 
+                                            if (!string.IsNullOrEmpty(resFromAPI))
+                                            {
+                                                var comInfos = JsonConvert.DeserializeObject<CompanyInfo[]>(resFromAPI);
+
+                                                result = new CompanyInfoResult
+                                                {
+                                                    Business_Accounting_NO = comInfos[0].Business_Accounting_NO,
+                                                    Company_Status_Desc = comInfos[0].Company_Status_Desc,
+                                                    Company_Name = comName,
+                                                    Capital_Stock_Amount = comInfos[0].Capital_Stock_Amount,
+                                                    Paid_In_Capital_Amount = comInfos[0].Paid_In_Capital_Amount,
+                                                    Responsible_Name = comInfos[0].Responsible_Name,
+                                                    Company_Location = comInfos[0].Company_Location,
+                                                    Register_Organization_Desc = comInfos[0].Register_Organization_Desc,
+                                                    Company_Setup_Date = comInfos[0].Company_Setup_Date,
+                                                    Change_Of_Approval_Data = comInfos[0].Change_Of_Approval_Data,
+                                                    Duplicate = comInfos.Length > 1 ? true : false,
+                                                    ErrNotice = false
+                                                };
+                                            }
+                                            else
+                                            {
+                                                result = new CompanyInfoResult
+                                                {
+                                                    Company_Name = comName,
+                                                    NoData = true
+                                                };
+                                            }
+
+                                            serverResponse = "result:" + JsonConvert.SerializeObject(result);
+                                            SendToClient(netStream, serverResponse);
+                                            Thread.Sleep(2000);
+                                        }
                                     }
+                                    serverResponse = string.Format("查詢 {0} 完成!", comName);
+                                    SendToClient(netStream, serverResponse);
+                                    index++;
                                 }
-                                serverResponse = string.Format("查詢 {0} 完成!", comName);
-                                SendToClient(netStream, serverResponse);
-                                index++;
+                                catch (IOException e)
+                                {
+                                    Console.WriteLine(e.Message);
+                                    if (errCount >= 3)
+                                    {
+                                        index++;
+                                        errCount = 0;
+
+                                        CompanyInfoResult err = new CompanyInfoResult
+                                        {
+                                            Company_Name = comName,
+                                            ErrNotice = true
+                                        };
+                                        serverResponse = "result:" + JsonConvert.SerializeObject(err);
+                                        SendToClient(netStream, serverResponse);
+                                        serverResponse = string.Format("查詢 {0} 時發生錯誤已達3次，錯誤代碼 {1} ，將暫時跳過", comName, response.StatusCode.ToString());
+                                        SendToClient(netStream, serverResponse);
+                                        continue;
+                                    }
+                                    errCount++;
+                                    serverResponse = string.Format("查詢 {0} 時出現連線錯誤，錯誤代碼 {1}，將等候 10 秒重試...", comName, response.StatusCode.ToString());
+                                    SendToClient(netStream, serverResponse);
+
+                                    Thread.Sleep(10000);
+                                    continue;
+                                }
+
                             }
                             else
                             {
@@ -214,31 +311,38 @@ namespace getGcisServer
                                 {
                                     index++;
                                     errCount = 0;
-                                    result.Add(
-                                        new CompanyInfoResult
-                                        {
-                                            Company_Name = comName,
-                                            ErrNotice = true
-                                        });
+
+                                    CompanyInfoResult err = new CompanyInfoResult
+                                    {
+                                        Company_Name = comName,
+                                        ErrNotice = true
+                                    };
+                                    serverResponse = "result:" + JsonConvert.SerializeObject(err);
+                                    SendToClient(netStream, serverResponse);
                                     serverResponse = string.Format("查詢 {0} 時發生錯誤已達3次，錯誤代碼 {1} ，將暫時跳過", comName, response.StatusCode.ToString());
                                     SendToClient(netStream, serverResponse);
                                     continue;
                                 }
                                 errCount++;
-                                serverResponse = string.Format("查詢 {0} 時出現連線錯誤，錯誤代碼 {1}", comName, response.StatusCode.ToString());
+                                serverResponse = string.Format("查詢 {0} 時出現連線錯誤，錯誤代碼 {1}，將等候 10 秒重試...", comName, response.StatusCode.ToString());
                                 SendToClient(netStream, serverResponse);
-                                Thread.Sleep(2000);
+
+                                Thread.Sleep(10000);
                                 continue;
                             }
                         }
 
-                        serverResponse = "result:" + JsonConvert.SerializeObject(result);
+
+                        Thread.Sleep(3000);
+                        serverResponse = "finish";
                         SendToClient(netStream, serverResponse);
-                        client.Close();
+                        netStream.Close();
                     }
                 }
+
+
             }
-            netStream.Close();
+
             clientNumInService--;
         }
 
