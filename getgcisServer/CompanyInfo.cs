@@ -7,7 +7,10 @@ using Newtonsoft.Json;
 
 namespace getGcisServer
 {
-
+    /*
+     * 用來序列和反序列化公司資訊的類
+     * 用於接收到商工公示資料時的解碼
+     */
     public class CompanyInfo
     {
         [JsonProperty("Business_Accounting_NO")]
@@ -42,6 +45,12 @@ namespace getGcisServer
 
     }
 
+    /*
+     * 這個類除了公司基本資料外，另外加了3個布林值的屬性，分別代表：
+     *      Duplicate ： 此公司名稱有不只一個查詢結果
+     *      ErrNotice ： 在查詢此公司時發生連線異常，結果可能不正確
+     *      NoData    ： 查無資料
+     */
     public class CompanyInfoResult : CompanyInfo
     {
         public bool Duplicate { get; set; }

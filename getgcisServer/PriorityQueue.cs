@@ -6,6 +6,12 @@ using System.Threading.Tasks;
 
 namespace getGcisServer
 {
+    /*
+        帶有優先順序的佇列。
+        用這個類別來設計排隊，如果目前已達3個連線在查詢，新加入的人會在這個佇列中進行等候。
+        優先順序則為加入時間。
+         
+    */
     class PriorityQueue<T>
     {
         IComparer<T> comparer;
