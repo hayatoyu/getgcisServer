@@ -230,7 +230,7 @@ namespace getGcisServer
                                 .Append("/od/data/api/6BBA2268-1367-4B42-9CCA-BC17499EBE8C")
                                 .Append("?$format=json&$filter=")
                                 .Append(param.Replace("comName", comName));
-                            serverResponse = string.Format("{0} 開始查詢第 {1} / {2} 條資料...公司名稱 {3}", IPAddr,index + 1,comRequest.comList.Length,comName);
+                            serverResponse = string.Format("{0} 開始查詢第 {1} / {2} 條資料 : {3}", IPAddr,index + 1,comRequest.comList.Length,comName);
                             SendToClient(netStream, serverResponse);
                             Console.WriteLine(serverResponse);
 
@@ -283,7 +283,7 @@ namespace getGcisServer
                                             Thread.Sleep(2000);
                                         }
                                     }
-                                    serverResponse = string.Format("{0} 查詢 {1} 完成!",IPAddr, comName);
+                                    serverResponse = string.Format("{0} 查詢 {1} 完成!\n",IPAddr, comName);
                                     SendToClient(netStream, serverResponse);
                                     Console.WriteLine(serverResponse);
                                     index++;
