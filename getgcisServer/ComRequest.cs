@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 
 namespace getGcisServer
 {
+    /*
+     * 用來接收客戶端傳來的查詢列表
+     */
     class ComRequest
     {
         public string[] comList { get; set; }

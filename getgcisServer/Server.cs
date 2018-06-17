@@ -27,9 +27,13 @@ namespace getGcisServer
         private TcpClient socketClient;
         private static object o = new object();
 
-        public static Server server = new Server();
+        public static Server server = new Server();     // 確保只有一個實例
 
-
+        /*
+         * 這是一個簡單的單體模式
+         * 將建構子設為 private，讓外部程式無法呼叫
+         * 這樣便無法從外部 new 出新實例(以免無法控管連線數)
+         */
         private Server()
         {
             try
@@ -47,6 +51,12 @@ namespace getGcisServer
             bgwServer.DoWork += new DoWorkEventHandler(addToWaitLine);
         }
 
+        /*
+           用來取得實例，在其中呼叫建構子。
+           如果建構子是 null ， new 出一個實例並回傳之
+           由於為了避免併行狀況，加入了 lock。
+           事實上因為 server 是靜態變數，而且在一開始就已經給他一個實例了，應該是不需要再 new 才對。
+        */
         public static Server getInstance()
         {
             lock (o)
@@ -57,6 +67,10 @@ namespace getGcisServer
             return server;
         }
 
+        /*
+         * 接收 Client 端連線的工作，我讓 BackGroundWorker 來執行。
+         * 這比較輕量，但我想也夠了。
+         */
         public void Start()
         {
             if (!bgwServer.IsBusy)
@@ -80,6 +94,13 @@ namespace getGcisServer
             }
         }
 
+        /*
+         * 將 Client 端來的連線都加入等待佇列之中。
+         * BackGroundWorker會在背後執行這個函式
+         * 只要在 AutoListen 屬性為開啟的狀態下，就會不斷的等待連線。
+         * 所以的客戶都會先進到等待佇列中，再由 addToService() 判斷是否要開始查詢。
+         * 當客戶端收到 "added" 訊息時，她會知道他已經被加入佇列，但還需要等 Server 叫他。
+         */
         private void addToWaitLine(object sender, DoWorkEventArgs e)
         {
             try
@@ -114,11 +135,19 @@ namespace getGcisServer
             }
         }
 
+        /*
+         * 迴圈會一直持續到開始查詢
+         * 每次查看佇列，如果佇列中有 Client 在等，且目前連線數小於3
+         * 則將排第一的 Client Pop() 出來。Pop()後該客戶會從等待佇列中移除。
+         * 更改 StartService 的值，當程式出迴圈後這個 Thread 就會結束。
+         * 不過在結束前會另起一個 Query 的 Thread 進行查詢作業。
+         */
         private void addToService()
         {
             TcpCientComarable customer = null;
             Thread th = null;
-            while (true)
+            bool StartService = false;
+            while (!StartService)
             {
                 lock (WaitLine)
                 {
@@ -128,12 +157,22 @@ namespace getGcisServer
                         th = new Thread(() => Query(customer.tcpClient));
                         clientNumInService++;
                         th.Start();
+                        StartService = true;
                     }
                 }
 
             }
         }
 
+        /*
+         * 這時才開始查詢
+         * 先傳送 "ready" 給客戶端，告訴客戶端可以開始傳送查詢列表了
+         * 查詢過程中每查一筆就會回傳客戶端一筆資料
+         * 最後傳送 "finish" 告訴客戶端已經全部查完
+         * 但中斷連線則是由客戶端去中斷
+         * 在查詢過程中發生錯誤會嘗試重試3次，都不行則跳過。
+         * 錯誤處理的部分應該能重構，但我懶得做。
+         */
         private void Query(TcpClient client)
         {
             NetworkStream netStream = client.GetStream();
@@ -152,11 +191,17 @@ namespace getGcisServer
             {
                 try
                 {
+                    /*
+                     * 由於客戶列表相當長，buffer沒辦法一次讀完
+                     * 請用迴圈依次將 netStream 中的資料加入 StringBuilder
+                     * 實測過程中如果不加入延遲，有機會資料傳到一半 DataAvailable 變為 false 跳出迴圈而讀取不完全
+                     * 猜測應該是迴圈跑太快，下一次讀取時剛好資料還沒進來導致的。
+                     */
                     do
                     {
                         reqlength = netStream.Read(buffer, 0, buffer.Length);
                         stbr.Append(Encoding.UTF8.GetString(buffer, 0, reqlength));
-                        Thread.Sleep(1000);
+                        Thread.Sleep(1500);
                     }
                     while (netStream.DataAvailable);
                 }
@@ -230,7 +275,7 @@ namespace getGcisServer
                                 .Append("/od/data/api/6BBA2268-1367-4B42-9CCA-BC17499EBE8C")
                                 .Append("?$format=json&$filter=")
                                 .Append(param.Replace("comName", comName));
-                            serverResponse = string.Format("{0} 開始查詢第 {1} / {2} 條資料...公司名稱 {3}", IPAddr,index + 1,comRequest.comList.Length,comName);
+                            serverResponse = string.Format("{0} 開始查詢第 {1} / {2} 條資料 : {3}", IPAddr,index + 1,comRequest.comList.Length,comName);
                             SendToClient(netStream, serverResponse);
                             Console.WriteLine(serverResponse);
 
@@ -283,7 +328,7 @@ namespace getGcisServer
                                             Thread.Sleep(2000);
                                         }
                                     }
-                                    serverResponse = string.Format("{0} 查詢 {1} 完成!",IPAddr, comName);
+                                    serverResponse = string.Format("{0} 查詢 {1} 完成!\n",IPAddr, comName);
                                     SendToClient(netStream, serverResponse);
                                     Console.WriteLine(serverResponse);
                                     index++;
