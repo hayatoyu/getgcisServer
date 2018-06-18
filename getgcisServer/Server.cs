@@ -407,6 +407,7 @@ namespace getGcisServer
                         SendToClient(netStream, serverResponse);
                         serverResponse = string.Format("{0} 批次查詢作業完畢", IPAddr);
                         Console.WriteLine(serverResponse);
+                        Thread.Sleep(3000);
                         netStream.Close();
                     }
                 }
