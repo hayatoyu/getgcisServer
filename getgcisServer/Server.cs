@@ -21,7 +21,8 @@ namespace getGcisServer
         public int clientNumInService { private set; get; }
         public bool AutoListen { private set; get; }
         const int MaxClientNum = 3;
-        private PriorityQueue<TcpCientComarable> WaitLine;
+        //private PriorityQueue<TcpCientComarable> WaitLine;
+        private Queue<TcpClient> WaitLine;
         private TcpListener listener;
         private BackgroundWorker bgwServer;
         private TcpClient socketClient;
@@ -43,9 +44,10 @@ namespace getGcisServer
             catch (Exception e)
             {
                 portNum = 1357;
+                Console.WriteLine("讀取 Port 發生錯誤：{0}\n使用預設 Port ： 1357", e.Message);
             }
             clientNumInService = 0;
-            WaitLine = new PriorityQueue<TcpCientComarable>();
+            WaitLine = new Queue<TcpClient>();
             AutoListen = true;
             bgwServer = new BackgroundWorker();
             bgwServer.DoWork += new DoWorkEventHandler(addToWaitLine);
@@ -83,14 +85,14 @@ namespace getGcisServer
             listener.Stop();
             bgwServer.Dispose();
 
-            while (WaitLine.Peep())
+            while (WaitLine.Count > 0)
             {
-                var c = WaitLine.Pop();
-                using (NetworkStream ns = c.tcpClient.GetStream())
+                var c = WaitLine.Dequeue();
+                using (NetworkStream ns = c.GetStream())
                 {
                     SendToClient(ns, CloseMsg);
                 }
-                c.tcpClient.Close();
+                c.Close();
             }
         }
 
@@ -103,21 +105,23 @@ namespace getGcisServer
          */
         private void addToWaitLine(object sender, DoWorkEventArgs e)
         {
-            try
+
+            if (listener != null)
+                listener.Stop();
+            listener = new TcpListener(IPAddress.Any, portNum);
+            listener.Start();
+            Console.WriteLine("Server start listening...");
+            while (AutoListen)
             {
-                if (listener != null)
-                    listener.Stop();
-                listener = new TcpListener(IPAddress.Any, portNum);
-                listener.Start();
-                Console.WriteLine("Server start listening...");
-                while (AutoListen)
+                try
                 {
                     socketClient = listener.AcceptTcpClient();
                     string serverMsg = string.Format("Connected to {0},add to WaitLine...", ((IPEndPoint)socketClient.Client.RemoteEndPoint).Address.ToString());
                     Console.WriteLine(serverMsg);
                     lock (WaitLine)
                     {
-                        WaitLine.push(new TcpCientComarable(socketClient, DateTime.Now));
+                        //WaitLine.push(new TcpCientComarable(socketClient, DateTime.Now));
+                        WaitLine.Enqueue(socketClient);
                         Thread.Sleep(2000);
                     }
 
@@ -128,11 +132,13 @@ namespace getGcisServer
                     Thread th = new Thread(() => addToService());
                     th.Start();
                 }
+                catch(Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
+
+
         }
 
         /*
@@ -144,23 +150,18 @@ namespace getGcisServer
          */
         private void addToService()
         {
-            TcpCientComarable customer = null;
+            TcpClient customer = null;
             Thread th = null;
-            bool StartService = false;
-            while (!StartService)
+            
+            lock(WaitLine)
             {
-                lock (WaitLine)
+                if(WaitLine.Count > 0 && clientNumInService < 3)
                 {
-                    if (WaitLine.Peep() && clientNumInService < 3)
-                    {
-                        customer = WaitLine.Pop();
-                        th = new Thread(() => Query(customer.tcpClient));
-                        clientNumInService++;
-                        th.Start();
-                        StartService = true;
-                    }
+                    customer = WaitLine.Dequeue();
+                    th = new Thread(() => Query(customer));
+                    clientNumInService++;
+                    th.Start();                    
                 }
-
             }
         }
 
@@ -205,7 +206,7 @@ namespace getGcisServer
                     }
                     while (netStream.DataAvailable);
                 }
-                catch(IOException e)
+                catch (IOException e)
                 {
                     // 連線中斷
                     Console.WriteLine(e.Message);
@@ -224,19 +225,19 @@ namespace getGcisServer
                     try
                     {
                         comRequest = JsonConvert.DeserializeObject<ComRequest>(clientRequest);
-                        serverResponse = string.Format("收到 {0} 欲查詢之資料...",IPAddr);
+                        serverResponse = string.Format("收到 {0} 欲查詢之資料...", IPAddr);
                         SendToClient(netStream, serverResponse);
                     }
                     catch (Exception e)
                     {
                         Console.WriteLine(e.Message);
-                        serverResponse = string.Format("無法解析來自 {0} 之 Json 字串 : {1}",IPAddr, clientRequest);
+                        serverResponse = string.Format("無法解析來自 {0} 之 Json 字串 : {1}", IPAddr, clientRequest);
                         Console.WriteLine(serverResponse);
                         SendToClient(netStream, serverResponse);
                         requestErr++;
                         if (requestErr > 2)
                         {
-                            serverResponse = string.Format("無法解析來自 {0} 之 Json 字串已達 {1} 次，請檢查是否有誤，即將中斷連線",IPAddr, requestErr);
+                            serverResponse = string.Format("無法解析來自 {0} 之 Json 字串已達 {1} 次，請檢查是否有誤，即將中斷連線", IPAddr, requestErr);
                             Console.WriteLine(serverResponse);
                             SendToClient(netStream, serverResponse);
                             client.Close();
@@ -275,14 +276,23 @@ namespace getGcisServer
                                 .Append("/od/data/api/6BBA2268-1367-4B42-9CCA-BC17499EBE8C")
                                 .Append("?$format=json&$filter=")
                                 .Append(param.Replace("comName", comName));
-                            serverResponse = string.Format("{0} 開始查詢第 {1} / {2} 條資料 : {3}", IPAddr,index + 1,comRequest.comList.Length,comName);
+                            serverResponse = string.Format("{0} 開始查詢第 {1} / {2} 條資料 : {3}", IPAddr, index + 1, comRequest.comList.Length, comName);
                             SendToClient(netStream, serverResponse);
                             Console.WriteLine(serverResponse);
+                            HttpWebResponse response = null;
+                            
+                            try
+                            {
+                                WebRequest request = WebRequest.Create(stbr.ToString());
+                                response = request.GetResponse() as HttpWebResponse;
+                            }
+                            catch(WebException e)
+                            {
+                                Console.WriteLine(e.Message);
+                            }
+                            
 
-                            WebRequest request = WebRequest.Create(stbr.ToString());
-                            HttpWebResponse response = request.GetResponse() as HttpWebResponse;
-
-                            if (response.StatusCode == HttpStatusCode.OK)
+                            if (response != null && response.StatusCode == HttpStatusCode.OK)
                             {
                                 try
                                 {
@@ -328,25 +338,25 @@ namespace getGcisServer
                                             Thread.Sleep(2000);
                                         }
                                     }
-                                    serverResponse = string.Format("{0} 查詢 {1} 完成!\n",IPAddr, comName);
+                                    serverResponse = string.Format("{0} 查詢 {1} 完成!\n", IPAddr, comName);
                                     SendToClient(netStream, serverResponse);
                                     Console.WriteLine(serverResponse);
                                     index++;
                                 }
                                 catch (IOException e)
                                 {
-                                    Console.WriteLine(e.Message);                                    
+                                    Console.WriteLine(e.Message);
                                     errCount++;
-                                    serverResponse = string.Format("{0} 查詢 {1} 時出現連線錯誤，錯誤代碼 {2}，將等候 10 秒重試...",IPAddr, comName, response.StatusCode.ToString());
+                                    serverResponse = string.Format("{0} 查詢 {1} 時出現連線錯誤，錯誤代碼 {2}，將等候 10 秒重試...", IPAddr, comName, response.StatusCode.ToString());
                                     SendToClient(netStream, serverResponse);
                                     Console.WriteLine(serverResponse);
                                     Thread.Sleep(10000);
                                     continue;
                                 }
-                                catch(JsonSerializationException e)
+                                catch (JsonSerializationException e)
                                 {
                                     Console.WriteLine(e.Message);
-                                    serverResponse = string.Format("{0} 查詢 {1} 時回應資料無法解析，將等候 5 秒重試...",IPAddr, comName);
+                                    serverResponse = string.Format("{0} 查詢 {1} 時回應資料無法解析，將等候 5 秒重試...", IPAddr, comName);
                                     errCount++;
                                     SendToClient(netStream, serverResponse);
                                     Console.WriteLine(serverResponse);
@@ -367,9 +377,9 @@ namespace getGcisServer
                                         };
                                         serverResponse = "result:" + JsonConvert.SerializeObject(err);
                                         SendToClient(netStream, serverResponse);
-                                        serverResponse = string.Format("{0} 查詢 {1} 時發生錯誤已達3次，錯誤代碼 {2} ，將暫時跳過",IPAddr, comName, response.StatusCode.ToString());
+                                        serverResponse = string.Format("{0} 查詢 {1} 時發生錯誤已達3次，錯誤代碼 {2} ，將暫時跳過", IPAddr, comName, response.StatusCode.ToString());
                                         Console.WriteLine(serverResponse);
-                                        SendToClient(netStream, serverResponse);                                        
+                                        SendToClient(netStream, serverResponse);
                                     }
                                 }
                             }
@@ -387,13 +397,13 @@ namespace getGcisServer
                                     };
                                     serverResponse = "result:" + JsonConvert.SerializeObject(err);
                                     SendToClient(netStream, serverResponse);
-                                    serverResponse = string.Format("{0} 查詢 {1} 時發生錯誤已達3次，錯誤代碼 {2} ，將暫時跳過",IPAddr, comName, response.StatusCode.ToString());
+                                    serverResponse = string.Format("{0} 查詢 {1} 時發生錯誤已達3次，錯誤代碼 {2} ，將暫時跳過", IPAddr, comName, response.StatusCode.ToString());
                                     SendToClient(netStream, serverResponse);
                                     Console.WriteLine(serverResponse);
                                     continue;
                                 }
                                 errCount++;
-                                serverResponse = string.Format("{0} 查詢 {1} 時出現連線錯誤，錯誤代碼 {2}，將等候 10 秒重試...",IPAddr, comName, response.StatusCode.ToString());
+                                serverResponse = string.Format("{0} 查詢 {1} 時出現連線錯誤，錯誤代碼 {2}，將等候 10 秒重試...", IPAddr, comName, response.StatusCode.ToString());
                                 SendToClient(netStream, serverResponse);
                                 Console.WriteLine(serverResponse);
                                 Thread.Sleep(10000);
@@ -416,6 +426,8 @@ namespace getGcisServer
             }
 
             clientNumInService--;
+            Thread th = new Thread(addToService);
+            th.Start();
         }
 
         private void SendToClient(NetworkStream ns, string content)
