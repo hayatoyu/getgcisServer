@@ -187,6 +187,15 @@ namespace getGcisServer
             // 告訴 client 可以開始送資料了
             serverResponse = "ready";
             SendToClient(netStream, serverResponse);
+            try
+            {
+                netStream.ReadTimeout = int.Parse(ConfigurationManager.AppSettings["TimeOut"].ToString());
+            }
+            catch(Exception e)
+            {
+                Console.WriteLine(e.Message);
+                netStream.ReadTimeout = 10000;
+            }
 
             while (client.Connected)
             {
@@ -210,6 +219,11 @@ namespace getGcisServer
                 {
                     // 連線中斷
                     Console.WriteLine(e.Message);
+                    serverResponse = e.Message;
+                    SendToClient(netStream, serverResponse);
+                    serverResponse = "finish";
+                    SendToClient(netStream, serverResponse);
+                    Thread.Sleep(2000);
                     client.Close();
                     break;
                 }
