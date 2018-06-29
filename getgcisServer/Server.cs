@@ -327,7 +327,7 @@ namespace getGcisServer
                                                 {
                                                     Business_Accounting_NO = cInfo.Business_Accounting_NO,
                                                     Company_Status_Desc = cInfo.Company_Status_Desc,
-                                                    Company_Name = comName,
+                                                    Company_Name = cInfo.Company_Name,
                                                     Capital_Stock_Amount = cInfo.Capital_Stock_Amount,
                                                     Paid_In_Capital_Amount = cInfo.Paid_In_Capital_Amount,
                                                     Responsible_Name = cInfo.Responsible_Name,
