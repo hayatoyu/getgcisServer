@@ -307,20 +307,36 @@ namespace getGcisServer
                                             if (!string.IsNullOrEmpty(resFromAPI))
                                             {
                                                 var comInfos = JsonConvert.DeserializeObject<CompanyInfo[]>(resFromAPI);
-
+                                                CompanyInfo cInfo = null;
+                                                bool NameMatch = false;
+                                                /*
+                                                 * 這裡有可能找到多家公司，目前處理方法如下：
+                                                 *  1. 如果有多家公司，比對公司名稱完全吻合
+                                                 *  2. 如果沒有公司名稱完全吻合，取第一個
+                                                 *  3. 如果只有一家公司，取第一個
+                                                 * 
+                                                 */
+                                                if(comInfos.Length > 1)
+                                                {
+                                                    cInfo = comInfos.Where(c => c.Company_Name.Equals(comName)).FirstOrDefault();
+                                                    NameMatch = cInfo != default(CompanyInfo) ? true : false;
+                                                }
+                                                if (cInfo == null || cInfo == default(CompanyInfo))
+                                                    cInfo = comInfos[0];
                                                 result = new CompanyInfoResult
                                                 {
-                                                    Business_Accounting_NO = comInfos[0].Business_Accounting_NO,
-                                                    Company_Status_Desc = comInfos[0].Company_Status_Desc,
+                                                    Business_Accounting_NO = cInfo.Business_Accounting_NO,
+                                                    Company_Status_Desc = cInfo.Company_Status_Desc,
                                                     Company_Name = comName,
-                                                    Capital_Stock_Amount = comInfos[0].Capital_Stock_Amount,
-                                                    Paid_In_Capital_Amount = comInfos[0].Paid_In_Capital_Amount,
-                                                    Responsible_Name = comInfos[0].Responsible_Name,
-                                                    Company_Location = comInfos[0].Company_Location,
-                                                    Register_Organization_Desc = comInfos[0].Register_Organization_Desc,
-                                                    Company_Setup_Date = comInfos[0].Company_Setup_Date,
-                                                    Change_Of_Approval_Data = comInfos[0].Change_Of_Approval_Data,
+                                                    Capital_Stock_Amount = cInfo.Capital_Stock_Amount,
+                                                    Paid_In_Capital_Amount = cInfo.Paid_In_Capital_Amount,
+                                                    Responsible_Name = cInfo.Responsible_Name,
+                                                    Company_Location = cInfo.Company_Location,
+                                                    Register_Organization_Desc = cInfo.Register_Organization_Desc,
+                                                    Company_Setup_Date = cInfo.Company_Setup_Date,
+                                                    Change_Of_Approval_Data = cInfo.Change_Of_Approval_Data,
                                                     Duplicate = comInfos.Length > 1 ? true : false,
+                                                    NameMatch = NameMatch,
                                                     ErrNotice = false
                                                 };
                                             }
@@ -347,7 +363,7 @@ namespace getGcisServer
                                 {
                                     Console.WriteLine(e.Message);
                                     errCount++;
-                                    serverResponse = string.Format("{0} 查詢 {1} 時出現連線錯誤，錯誤代碼 {2}，將等候 10 秒重試...", IPAddr, comName, response.StatusCode.ToString());
+                                    serverResponse = string.Format("{0} 查詢 {1} 時出現連線錯誤，將等候 10 秒重試...", IPAddr, comName);
                                     SendToClient(netStream, serverResponse);
                                     Console.WriteLine(serverResponse);
                                     Thread.Sleep(10000);
@@ -397,13 +413,13 @@ namespace getGcisServer
                                     };
                                     serverResponse = "result:" + JsonConvert.SerializeObject(err);
                                     SendToClient(netStream, serverResponse);
-                                    serverResponse = string.Format("{0} 查詢 {1} 時發生錯誤已達3次，錯誤代碼 {2} ，將暫時跳過", IPAddr, comName, response.StatusCode.ToString());
+                                    serverResponse = string.Format("{0} 查詢 {1} 時發生錯誤已達3次，將暫時跳過", IPAddr, comName);
                                     SendToClient(netStream, serverResponse);
                                     Console.WriteLine(serverResponse);
                                     continue;
                                 }
                                 errCount++;
-                                serverResponse = string.Format("{0} 查詢 {1} 時出現連線錯誤，錯誤代碼 {2}，將等候 10 秒重試...", IPAddr, comName, response.StatusCode.ToString());
+                                serverResponse = string.Format("{0} 查詢 {1} 時出現連線錯誤，將等候 10 秒重試...", IPAddr, comName);
                                 SendToClient(netStream, serverResponse);
                                 Console.WriteLine(serverResponse);
                                 Thread.Sleep(10000);

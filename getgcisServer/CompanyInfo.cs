@@ -54,7 +54,9 @@ namespace getGcisServer
     public class CompanyInfoResult : CompanyInfo
     {
         public bool Duplicate { get; set; }
+        public bool NameMatch { get; set; }
         public bool ErrNotice { get; set; }
         public bool NoData { get; set; }
+        
     }
 }
