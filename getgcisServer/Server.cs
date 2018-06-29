@@ -286,7 +286,7 @@ namespace getGcisServer
 
                             comName = comRequest.comList[index];
                             stbr.Clear();
-                            stbr.Append("http://").Append("data.gcis.nat.gov.tw")
+                            stbr.Append("https://").Append("data.gcis.nat.gov.tw")
                                 .Append("/od/data/api/6BBA2268-1367-4B42-9CCA-BC17499EBE8C")
                                 .Append("?$format=json&$filter=")
                                 .Append(param.Replace("comName", comName));
