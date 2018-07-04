@@ -182,7 +182,18 @@ namespace getGcisServer
             StringBuilder stbr = new StringBuilder();
             int reqlength = 0;
             int requestErr = 0;
-            string IPAddr = ((IPEndPoint)client.Client.RemoteEndPoint).Address.ToString();
+            string IPAddr = string.Empty;
+            try
+            {
+                IPAddr = ((IPEndPoint)client.Client.RemoteEndPoint).Address.ToString();
+            }
+            catch(Exception e)
+            {
+                PrintErrMsgToConsole(e);
+                client.Close();
+                return;
+            }
+            
 
             // 告訴 client 可以開始送資料了
             serverResponse = "ready";
@@ -463,8 +474,20 @@ namespace getGcisServer
         private void SendToClient(NetworkStream ns, string content)
         {
             byte[] sendByte = Encoding.UTF8.GetBytes(content);
-            ns.Write(sendByte, 0, sendByte.Length);
-            ns.Flush();
+            try
+            {
+                ns.Write(sendByte, 0, sendByte.Length);
+                ns.Flush();
+            }
+            catch(Exception e)
+            {
+                PrintErrMsgToConsole(e);
+            }
+        }
+
+        private void PrintErrMsgToConsole(Exception e)
+        {
+            Console.WriteLine("錯誤類型：{0}\n錯誤訊息：{1}\n堆疊：{2}：", e.GetType(), e.Message, e.StackTrace);
         }
     }
 }
