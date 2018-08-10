@@ -309,6 +309,11 @@ namespace getGcisServer
                             try
                             {
                                 WebRequest request = WebRequest.Create(stbr.ToString());
+                                /*
+                                 * 如果 IE 中有設定 Proxy，WebRequest預設將採用IE的Proxy設定。
+                                 * 可在 App.config 檔裡設定
+                                 */
+                                setWebProxy(request);
                                 response = request.GetResponse() as HttpWebResponse;
                             }
                             catch(WebException e)
@@ -488,6 +493,14 @@ namespace getGcisServer
         private void PrintErrMsgToConsole(Exception e)
         {
             Console.WriteLine("錯誤類型：{0}\n錯誤訊息：{1}\n堆疊：{2}：", e.GetType(), e.Message, e.StackTrace);
+        }
+
+        private void setWebProxy(WebRequest request)
+        {
+            if(ConfigurationManager.AppSettings["useProxy"].ToString().Equals(bool.FalseString))
+            {
+                request.Proxy = null;
+            }            
         }
     }
 }

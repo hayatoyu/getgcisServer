@@ -1,0 +1,88 @@
+列出磁碟區 WIN7 的資料夾 PATH
+磁碟區序號為 8EB5-0721
+C:\USERS\51942\SOURCE\REPOS\GETGCISSERVER
+│  .gitattributes
+│  .gitignore
+│  getgcisServer.sln
+│  outputServer.txt
+│  
+├─getgcisServer
+│  │  App.config
+│  │  CompanyInfo.cs
+│  │  ComRequest.cs
+│  │  getGcisServer.csproj
+│  │  packages.config
+│  │  PriorityQueue.cs
+│  │  Program.cs
+│  │  Server.cs
+│  │  TcpCientComarable.cs
+│  │  
+│  ├─bin
+│  │  │  getGcisServer.zip
+│  │  │  
+│  │  └─Debug
+│  │          getgcisServer.exe
+│  │          getgcisServer.exe.config
+│  │          getgcisServer.pdb
+│  │          Newtonsoft.Json.dll
+│  │          Newtonsoft.Json.xml
+│  │          
+│  ├─obj
+│  │  └─Debug
+│  │      │  DesignTimeResolveAssemblyReferencesInput.cache
+│  │      │  getGcisServer.csproj.CopyComplete
+│  │      │  getGcisServer.csproj.CoreCompileInputs.cache
+│  │      │  getGcisServer.csproj.FileListAbsolute.txt
+│  │      │  getGcisServer.csprojAssemblyReference.cache
+│  │      │  getgcisServer.exe
+│  │      │  getgcisServer.pdb
+│  │      │  TemporaryGeneratedFile_036C0B5B-1481-4323-8D20-8F5ADCB23D92.cs
+│  │      │  TemporaryGeneratedFile_5937a670-0e60-4077-877b-f7221da3dda1.cs
+│  │      │  TemporaryGeneratedFile_E7A71F73-0F8D-4B9B-B56E-8E70B10BC5D3.cs
+│  │      │  
+│  │      └─TempPE
+│  └─Properties
+│          AssemblyInfo.cs
+│          
+└─packages
+    └─Newtonsoft.Json.11.0.2
+        │  LICENSE.md
+        │  Newtonsoft.Json.11.0.2.nupkg
+        │  
+        └─lib
+            ├─net20
+            │      Newtonsoft.Json.dll
+            │      Newtonsoft.Json.xml
+            │      
+            ├─net35
+            │      Newtonsoft.Json.dll
+            │      Newtonsoft.Json.xml
+            │      
+            ├─net40
+            │      Newtonsoft.Json.dll
+            │      Newtonsoft.Json.xml
+            │      
+            ├─net45
+            │      Newtonsoft.Json.dll
+            │      Newtonsoft.Json.xml
+            │      
+            ├─netstandard1.0
+            │      Newtonsoft.Json.dll
+            │      Newtonsoft.Json.xml
+            │      
+            ├─netstandard1.3
+            │      Newtonsoft.Json.dll
+            │      Newtonsoft.Json.xml
+            │      
+            ├─netstandard2.0
+            │      Newtonsoft.Json.dll
+            │      Newtonsoft.Json.xml
+            │      
+            ├─portable-net40+sl5+win8+wp8+wpa81
+            │      Newtonsoft.Json.dll
+            │      Newtonsoft.Json.xml
+            │      
+            └─portable-net45+win8+wp8+wpa81
+                    Newtonsoft.Json.dll
+                    Newtonsoft.Json.xml
+                    
