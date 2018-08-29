@@ -295,7 +295,7 @@ namespace getGcisServer
                                 Thread.Sleep(10000);
                             }
 
-                            comName = comRequest.comList[index];
+                            comName = comRequest.comList[index].Trim();
                             stbr.Clear();
                             stbr.Append("https://").Append("data.gcis.nat.gov.tw")
                                 .Append("/od/data/api/6BBA2268-1367-4B42-9CCA-BC17499EBE8C")
