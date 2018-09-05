@@ -160,9 +160,10 @@ namespace getGcisServer
                     customer = WaitLine.Dequeue();
                     th = new Thread(() => Query(customer));
                     clientNumInService++;
-                    th.Start();                    
+                    th.Start();
                 }
             }
+            
         }
 
         /*
@@ -336,7 +337,25 @@ namespace getGcisServer
 
                                             if (!string.IsNullOrEmpty(resFromAPI))
                                             {
-                                                var comInfos = JsonConvert.DeserializeObject<CompanyInfo[]>(resFromAPI);
+                                                CompanyInfo[] comInfos = null;
+                                                try
+                                                {
+                                                    comInfos = JsonConvert.DeserializeObject<CompanyInfo[]>(resFromAPI);
+                                                }
+                                                catch(JsonReaderException e)
+                                                {
+                                                    Console.Write(resFromAPI);
+                                                    PrintErrMsgToConsole(e);
+                                                    SendToClient(netStream, e.Message);
+                                                    serverResponse = "JsonErr";
+                                                    SendToClient(netStream, serverResponse);
+                                                    Console.WriteLine("{0} 查詢過程中發生錯誤，已中止", IPAddr);
+                                                    client.Close();
+                                                    Thread.Sleep(3000);
+                                                    RunNextCustomer();
+                                                    return;
+                                                }
+                                                
                                                 CompanyInfo cInfo = null;
                                                 bool NameMatch = false;
                                                 /*
@@ -471,7 +490,15 @@ namespace getGcisServer
 
             }
 
-            clientNumInService--;
+            RunNextCustomer();
+        }
+
+        private void RunNextCustomer()
+        {
+            lock (o)
+            {
+                clientNumInService--;
+            }
             Thread th = new Thread(addToService);
             th.Start();
         }
