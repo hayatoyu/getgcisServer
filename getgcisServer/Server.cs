@@ -368,7 +368,7 @@ namespace getGcisServer
                                                 if(comInfos.Length > 1)
                                                 {
                                                     cInfo = comInfos.Where(c => c.Company_Name.Equals(comName)).FirstOrDefault();
-                                                    NameMatch = cInfo != default(CompanyInfo) ? true : false;
+                                                    NameMatch = (cInfo != default(CompanyInfo));
                                                 }
                                                 if (cInfo == null || cInfo == default(CompanyInfo))
                                                     cInfo = comInfos[0];
@@ -384,7 +384,7 @@ namespace getGcisServer
                                                     Register_Organization_Desc = cInfo.Register_Organization_Desc,
                                                     Company_Setup_Date = cInfo.Company_Setup_Date,
                                                     Change_Of_Approval_Data = cInfo.Change_Of_Approval_Data,
-                                                    Duplicate = comInfos.Length > 1 ? true : false,
+                                                    Duplicate = (comInfos.Length > 1),
                                                     NameMatch = NameMatch,
                                                     ErrNotice = false
                                                 };
@@ -410,7 +410,7 @@ namespace getGcisServer
                                 }
                                 catch (IOException e)
                                 {
-                                    Console.WriteLine(e.Message);
+                                    PrintErrMsgToConsole(e);
                                     errCount++;
                                     serverResponse = string.Format("{0} 查詢 {1} 時出現連線錯誤，將等候 10 秒重試...", IPAddr, comName);
                                     SendToClient(netStream, serverResponse);
@@ -420,8 +420,18 @@ namespace getGcisServer
                                 }
                                 catch (JsonSerializationException e)
                                 {
-                                    Console.WriteLine(e.Message);
+                                    PrintErrMsgToConsole(e);
                                     serverResponse = string.Format("{0} 查詢 {1} 時回應資料無法解析，將等候 5 秒重試...", IPAddr, comName);
+                                    errCount++;
+                                    SendToClient(netStream, serverResponse);
+                                    Console.WriteLine(serverResponse);
+                                    Thread.Sleep(5000);
+                                    continue;
+                                }
+                                catch(Exception e)
+                                {
+                                    PrintErrMsgToConsole(e);
+                                    serverResponse = string.Format("{0} 查詢 {1} 時發生不明原因錯誤，將等候 5 秒重試...", IPAddr, comName);
                                     errCount++;
                                     SendToClient(netStream, serverResponse);
                                     Console.WriteLine(serverResponse);
