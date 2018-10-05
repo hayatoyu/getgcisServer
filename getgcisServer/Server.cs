@@ -223,6 +223,8 @@ namespace getGcisServer
                     {
                         reqlength = netStream.Read(buffer, 0, buffer.Length);
                         stbr.Append(Encoding.UTF8.GetString(buffer, 0, reqlength));
+                        Console.WriteLine("received part of data...");
+                        SendToClient(netStream, "received part of data...");
                         Thread.Sleep(1500);
                     }
                     while (netStream.DataAvailable);
@@ -320,6 +322,7 @@ namespace getGcisServer
                             catch(WebException e)
                             {
                                 Console.WriteLine(e.Message);
+                                SendToClient(netStream, e.Message);
                             }
                             
 
