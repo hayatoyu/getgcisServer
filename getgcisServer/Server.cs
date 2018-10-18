@@ -21,7 +21,7 @@ namespace getGcisServer
         public int clientNumInService { private set; get; }
         public bool AutoListen { private set; get; }
         const int MaxClientNum = 3;
-        //private PriorityQueue<TcpCientComarable> WaitLine;
+        
         private Queue<TcpClient> WaitLine;
         private TcpListener listener;
         private BackgroundWorker bgwServer;
@@ -85,15 +85,19 @@ namespace getGcisServer
             listener.Stop();
             bgwServer.Dispose();
 
-            while (WaitLine.Count > 0)
+            lock(o)
             {
-                var c = WaitLine.Dequeue();
-                using (NetworkStream ns = c.GetStream())
+                while (WaitLine.Count > 0)
                 {
-                    SendToClient(ns, CloseMsg);
+                    var c = WaitLine.Dequeue();
+                    using (NetworkStream ns = c.GetStream())
+                    {
+                        SendToClient(ns, CloseMsg);
+                    }
+                    c.Close();
                 }
-                c.Close();
             }
+            
         }
 
         /*
@@ -221,10 +225,11 @@ namespace getGcisServer
                      */
                     do
                     {
+                        serverResponse = string.Format("received part of data from {0}...", IPAddr);
                         reqlength = netStream.Read(buffer, 0, buffer.Length);
                         stbr.Append(Encoding.UTF8.GetString(buffer, 0, reqlength));
-                        Console.WriteLine("received part of data...");
-                        SendToClient(netStream, "received part of data...");
+                        Console.WriteLine(serverResponse);
+                        SendToClient(netStream, serverResponse);
                         Thread.Sleep(1500);
                     }
                     while (netStream.DataAvailable);
@@ -288,7 +293,7 @@ namespace getGcisServer
                         serverResponse = string.Format("{0} 共有 {1} 條資料待查詢...", IPAddr, comRequest.comList.Length);
                         Console.WriteLine(serverResponse);
                         SendToClient(netStream, serverResponse);
-                        while (index < comRequest.comList.Length)
+                        while (index < comRequest.comList.Length && client.Connected)
                         {
                             if (index % 100 == 0 && index > 0)
                             {
@@ -524,7 +529,16 @@ namespace getGcisServer
                 ns.Write(sendByte, 0, sendByte.Length);
                 ns.Flush();
             }
-            catch(Exception e)
+            catch (IOException e)
+            {
+                PrintErrMsgToConsole(e);
+                if(e.HResult == -2146232800)
+                {
+                    Console.WriteLine("遠端主機已斷線");
+                }
+            }
+
+            catch (Exception e)
             {
                 PrintErrMsgToConsole(e);
             }
