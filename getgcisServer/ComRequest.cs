@@ -11,6 +11,6 @@ namespace getGcisServer
      */
     class ComRequest
     {
-        public string[] comList { get; set; }
+        public CompanyInfo[] comList { get; set; }
     }
 }

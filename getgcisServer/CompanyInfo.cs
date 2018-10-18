@@ -43,6 +43,24 @@ namespace getGcisServer
         [JsonProperty("Change_Of_Approval_Data")]
         public string Change_Of_Approval_Data { get; set; }
 
+        [JsonProperty(Required =Required.Default)]
+        public string Revoke_App_Date { get; set; }
+
+        [JsonProperty(Required = Required.Default)]
+        public string Case_Status { get; set; }
+
+        [JsonProperty(Required = Required.Default)]
+        public string Case_Status_Desc { get; set; }
+
+        [JsonProperty(Required = Required.Default)]
+        public string Sus_App_Date { get; set; }
+
+        [JsonProperty(Required = Required.Default)]
+        public string Sus_Beg_Date { get; set; }
+
+        [JsonProperty(Required = Required.Default)]
+        public string Sus_End_Date { get; set; }
+
     }
 
     /*

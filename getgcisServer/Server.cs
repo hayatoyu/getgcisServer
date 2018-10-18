@@ -21,7 +21,7 @@ namespace getGcisServer
         public int clientNumInService { private set; get; }
         public bool AutoListen { private set; get; }
         const int MaxClientNum = 3;
-        
+
         private Queue<TcpClient> WaitLine;
         private TcpListener listener;
         private BackgroundWorker bgwServer;
@@ -85,7 +85,7 @@ namespace getGcisServer
             listener.Stop();
             bgwServer.Dispose();
 
-            lock(o)
+            lock (o)
             {
                 while (WaitLine.Count > 0)
                 {
@@ -97,7 +97,7 @@ namespace getGcisServer
                     c.Close();
                 }
             }
-            
+
         }
 
         /*
@@ -136,7 +136,7 @@ namespace getGcisServer
                     Thread th = new Thread(() => addToService());
                     th.Start();
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     Console.WriteLine(ex.Message);
                 }
@@ -156,10 +156,10 @@ namespace getGcisServer
         {
             TcpClient customer = null;
             Thread th = null;
-            
-            lock(WaitLine)
+
+            lock (WaitLine)
             {
-                if(WaitLine.Count > 0 && clientNumInService < 3)
+                if (WaitLine.Count > 0 && clientNumInService < 3)
                 {
                     customer = WaitLine.Dequeue();
                     th = new Thread(() => Query(customer));
@@ -167,7 +167,7 @@ namespace getGcisServer
                     th.Start();
                 }
             }
-            
+
         }
 
         /*
@@ -192,13 +192,13 @@ namespace getGcisServer
             {
                 IPAddr = ((IPEndPoint)client.Client.RemoteEndPoint).Address.ToString();
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 PrintErrMsgToConsole(e);
                 client.Close();
                 return;
             }
-            
+
 
             // 告訴 client 可以開始送資料了
             serverResponse = "ready";
@@ -207,7 +207,7 @@ namespace getGcisServer
             {
                 netStream.ReadTimeout = int.Parse(ConfigurationManager.AppSettings["TimeOut"].ToString());
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 Console.WriteLine(e.Message);
                 netStream.ReadTimeout = 10000;
@@ -287,9 +287,10 @@ namespace getGcisServer
                     {
                         // 要開始查API了
                         stbr = new StringBuilder();
-                        string param = "Company_Name like comName and Company_Status eq 01";
+                        string paramCom = "Company_Name like comName and Company_Status eq 01";
+                        string paramID = "Business_Accounting_NO eq comID";
                         int errCount = 0, index = 0;
-                        string comName;
+                        string comName = string.Empty, comID = string.Empty;
                         serverResponse = string.Format("{0} 共有 {1} 條資料待查詢...", IPAddr, comRequest.comList.Length);
                         Console.WriteLine(serverResponse);
                         SendToClient(netStream, serverResponse);
@@ -303,17 +304,42 @@ namespace getGcisServer
                                 Thread.Sleep(10000);
                             }
 
-                            comName = comRequest.comList[index].Trim();
+                            var currentCom = comRequest.comList[index];
+                            if(!string.IsNullOrEmpty(currentCom.Company_Name))
+                                comName = comRequest.comList[index].Company_Name.Trim();
+                            if(!string.IsNullOrEmpty(currentCom.Business_Accounting_NO))
+                                comID = comRequest.comList[index].Business_Accounting_NO.Trim();
                             stbr.Clear();
-                            stbr.Append("http://").Append("data.gcis.nat.gov.tw")
+
+                            // 以統編優先
+                            if (!string.IsNullOrEmpty(comID))
+                            {
+                                serverResponse = string.Format("依照統編 {0} 作查詢...",comID);
+                                Console.WriteLine(serverResponse);
+                                SendToClient(netStream, serverResponse);
+                                stbr.Append("http://")
+                                    .Append("data.gcis.nat.gov.tw")
+                                    .Append("/od/data/api/5F64D864-61CB-4D0D-8AD9-492047CC1EA6")
+                                    .Append("?$format=json&$filter=")
+                                    .Append(paramID.Replace("comID", comID))
+                                    .Append("&$skip=0&$top=50");
+                            }
+                            else
+                            {
+                                serverResponse = string.Format("依照公司名稱 {0} 作查詢...", comName);
+                                Console.WriteLine(serverResponse);
+                                SendToClient(netStream, serverResponse);
+                                stbr.Append("http://").Append("data.gcis.nat.gov.tw")
                                 .Append("/od/data/api/6BBA2268-1367-4B42-9CCA-BC17499EBE8C")
                                 .Append("?$format=json&$filter=")
-                                .Append(param.Replace("comName", comName));
+                                .Append(paramCom.Replace("comName", comName));
+                            }
+
                             serverResponse = string.Format("{0} 開始查詢第 {1} / {2} 條資料 : {3}", IPAddr, index + 1, comRequest.comList.Length, comName);
                             SendToClient(netStream, serverResponse);
                             Console.WriteLine(serverResponse);
                             HttpWebResponse response = null;
-                            
+
                             try
                             {
                                 WebRequest request = WebRequest.Create(stbr.ToString());
@@ -324,12 +350,12 @@ namespace getGcisServer
                                 setWebProxy(request);
                                 response = request.GetResponse() as HttpWebResponse;
                             }
-                            catch(WebException e)
+                            catch (WebException e)
                             {
                                 Console.WriteLine(e.Message);
                                 SendToClient(netStream, e.Message);
                             }
-                            
+
 
                             if (response != null && response.StatusCode == HttpStatusCode.OK)
                             {
@@ -348,9 +374,10 @@ namespace getGcisServer
                                                 CompanyInfo[] comInfos = null;
                                                 try
                                                 {
+                                                    
                                                     comInfos = JsonConvert.DeserializeObject<CompanyInfo[]>(resFromAPI);
                                                 }
-                                                catch(JsonReaderException e)
+                                                catch (JsonReaderException e)
                                                 {
                                                     Console.Write(resFromAPI);
                                                     PrintErrMsgToConsole(e);
@@ -363,7 +390,7 @@ namespace getGcisServer
                                                     RunNextCustomer();
                                                     return;
                                                 }
-                                                
+
                                                 CompanyInfo cInfo = null;
                                                 bool NameMatch = false;
                                                 /*
@@ -373,29 +400,44 @@ namespace getGcisServer
                                                  *  3. 如果只有一家公司，取第一個
                                                  * 
                                                  */
-                                                if(comInfos.Length > 1)
+                                                if(comInfos != null)
                                                 {
-                                                    cInfo = comInfos.Where(c => c.Company_Name.Equals(comName)).FirstOrDefault();
-                                                    NameMatch = (cInfo != default(CompanyInfo));
+                                                    if (comInfos.Length > 1)
+                                                    {
+                                                        cInfo = comInfos.Where(c => c.Company_Name.Equals(comName)).FirstOrDefault();
+                                                        NameMatch = (cInfo != default(CompanyInfo));
+                                                    }
+                                                    if (cInfo == null || cInfo == default(CompanyInfo))
+                                                        cInfo = comInfos[0];
                                                 }
-                                                if (cInfo == null || cInfo == default(CompanyInfo))
-                                                    cInfo = comInfos[0];
-                                                result = new CompanyInfoResult
+                                                
+                                                if(cInfo != null)
                                                 {
-                                                    Business_Accounting_NO = cInfo.Business_Accounting_NO,
-                                                    Company_Status_Desc = cInfo.Company_Status_Desc,
-                                                    Company_Name = cInfo.Company_Name,
-                                                    Capital_Stock_Amount = cInfo.Capital_Stock_Amount,
-                                                    Paid_In_Capital_Amount = cInfo.Paid_In_Capital_Amount,
-                                                    Responsible_Name = cInfo.Responsible_Name,
-                                                    Company_Location = cInfo.Company_Location,
-                                                    Register_Organization_Desc = cInfo.Register_Organization_Desc,
-                                                    Company_Setup_Date = cInfo.Company_Setup_Date,
-                                                    Change_Of_Approval_Data = cInfo.Change_Of_Approval_Data,
-                                                    Duplicate = (comInfos.Length > 1),
-                                                    NameMatch = NameMatch,
-                                                    ErrNotice = false
-                                                };
+                                                    result = new CompanyInfoResult
+                                                    {
+                                                        Business_Accounting_NO = cInfo.Business_Accounting_NO,
+                                                        Company_Status_Desc = cInfo.Company_Status_Desc,
+                                                        Company_Name = cInfo.Company_Name,
+                                                        Capital_Stock_Amount = cInfo.Capital_Stock_Amount,
+                                                        Paid_In_Capital_Amount = cInfo.Paid_In_Capital_Amount,
+                                                        Responsible_Name = cInfo.Responsible_Name,
+                                                        Company_Location = cInfo.Company_Location,
+                                                        Register_Organization_Desc = cInfo.Register_Organization_Desc,
+                                                        Company_Setup_Date = cInfo.Company_Setup_Date,
+                                                        Change_Of_Approval_Data = cInfo.Change_Of_Approval_Data,
+                                                        Duplicate = (comInfos.Length > 1),
+                                                        NameMatch = NameMatch,
+                                                        ErrNotice = false
+                                                    };
+                                                }
+                                                else
+                                                {
+                                                    result = new CompanyInfoResult
+                                                    {
+                                                        Company_Name = comName,
+                                                        NoData = true
+                                                    };
+                                                }
                                             }
                                             else
                                             {
@@ -436,7 +478,7 @@ namespace getGcisServer
                                     Thread.Sleep(5000);
                                     continue;
                                 }
-                                catch(Exception e)
+                                catch (Exception e)
                                 {
                                     PrintErrMsgToConsole(e);
                                     serverResponse = string.Format("{0} 查詢 {1} 時發生不明原因錯誤，將等候 5 秒重試...", IPAddr, comName);
@@ -532,7 +574,7 @@ namespace getGcisServer
             catch (IOException e)
             {
                 PrintErrMsgToConsole(e);
-                if(e.HResult == -2146232800)
+                if (e.HResult == -2146232800)
                 {
                     Console.WriteLine("遠端主機已斷線");
                 }
@@ -551,10 +593,10 @@ namespace getGcisServer
 
         private void setWebProxy(WebRequest request)
         {
-            if(ConfigurationManager.AppSettings["useProxy"].ToString().Equals(bool.FalseString))
+            if (ConfigurationManager.AppSettings["useProxy"].ToString().Equals(bool.FalseString))
             {
                 request.Proxy = null;
-            }            
+            }
         }
     }
 }
