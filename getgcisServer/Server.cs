@@ -210,7 +210,7 @@ namespace getGcisServer
             catch (Exception e)
             {
                 Console.WriteLine(e.Message);
-                netStream.ReadTimeout = 10000;
+                netStream.ReadTimeout = 60000;
             }
 
             while (client.Connected)
