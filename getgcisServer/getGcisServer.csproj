@@ -58,6 +58,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <None Include="Doc\商工行政公示資料平台批次查詢工具系統文件_v1.1.doc" />
+    <None Include="Doc\商工行政公示資料開放平台服務.doc" />
+    <None Include="Doc\商工行政開放資料批次查詢工具操作手冊.doc" />
     <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
